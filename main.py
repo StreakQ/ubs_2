@@ -1,8 +1,30 @@
 import sys
-from PyQt6.QtWidgets import (QMainWindow, QTableWidget, QTableWidgetItem, QApplication)
+from PyQt6.QtWidgets import (QMainWindow, QTableWidget, QTableWidgetItem, QApplication, QDialog, QLabel, QVBoxLayout)
 from PyQt6 import uic
 import matplotlib.pyplot as plt
 import networkx as nx
+from PyQt6.QtGui import QPixmap
+
+
+class ImageDialog(QDialog):
+    def __init__(self, image_path):
+        super().__init__()
+        self.setWindowTitle("Graph Image")
+
+        # Создаем layout для диалога
+        layout = QVBoxLayout()
+
+        # Создаем QLabel для отображения изображения
+        label = QLabel(self)
+        pixmap = QPixmap(image_path)  # Загружаем изображение
+        label.setPixmap(pixmap)  # Устанавливаем pixmap в QLabel
+
+        # Добавляем QLabel в layout
+        layout.addWidget(label)
+
+        # Устанавливаем layout для диалога
+        self.setLayout(layout)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -15,7 +37,7 @@ class MainWindow(QMainWindow):
         self.Amatrix = self.findChild(QTableWidget, "Amatrix")
         self.std_input.clicked.connect(self.standart_input)
         self.make_std_graph.clicked.connect(lambda: self.make_standart_graph(self.Amatrix))
-        self.make_orient_graph_btn.clicked.connect(lambda :self.make_orient_graph(self.Amatrix))
+        self.make_orient_graph_btn.clicked.connect(lambda: self.make_orient_graph(self.Amatrix))
 
         self.Amatrix.setRowCount(17)
         self.Amatrix.setColumnCount(17)
@@ -71,48 +93,30 @@ class MainWindow(QMainWindow):
     def find_levels(self, graph):
         levels = {}  # Словарь для хранения уровней
         visited = set()  # Множество для отслеживания посещенных узлов
-        node_levels = {}  # Словарь для хранения уровня каждого узла
-        queue = []  # Очередь для хранения узлов
+        in_degree = {node: 0 for node in graph.nodes()}  # Входящие дуги для каждого узла
 
         # Подсчитываем входящие дуги для каждого узла
-        in_degree = {node: 0 for node in graph.nodes()}
         for u, v in graph.edges():
             in_degree[v] += 1
 
-        # Запускаем BFS для каждого узла, чтобы учестьDisconnected components
-        for node in graph.nodes():
-            if node not in visited:
-                # Если у узла нет входящих дуг, добавляем его на уровень 0
-                if in_degree[node] == 0:
-                    queue.append((node, 0))  # Добавляем узел и уровень в очередь
-                else:
-                    queue.append((node, 1))  # Если есть входящие дуги, начинаем с уровня 1
+        current_level = 0
 
-                while queue:
-                    current_node, level = queue.pop(0)  # Извлекаем из начала очереди
+        while len(visited) < len(graph.nodes()):
+            # Находим узлы текущего уровня
+            current_level_nodes = [node for node in graph.nodes() if in_degree[node] == 0 and node not in visited]
 
-                    if current_node in visited:
-                        continue
+            # Добавляем узлы текущего уровня в словарь уровней
+            levels[current_level] = current_level_nodes
 
-                    visited.add(current_node)
-                    node_levels[current_node] = level
+            # Обновляем входящие дуги для соседей
+            for node in current_level_nodes:
+                visited.add(node)
+                for neighbor in graph.successors(node):
+                    in_degree[neighbor] -= 1  # Уменьшаем количество входящих дуг для соседей
 
-                    # Добавляем соседей в очередь с увеличением уровня
-                    for neighbor in graph.successors(current_node):
-                        if neighbor not in visited:
-                            # Устанавливаем уровень для соседа, если он еще не установлен
-                            if neighbor not in node_levels:
-                                node_levels[neighbor] = level + 1
-                                queue.append((neighbor, level + 1))
-
-        # Группируем узлы по уровням
-        for node, level in node_levels.items():
-            if level not in levels:
-                levels[level] = []
-            levels[level].append(node)
+            current_level += 1  # Переход к следующему уровню
 
         return levels
-
 
     def define_node_positions(self, levels):
         pos = {}
@@ -124,7 +128,7 @@ class MainWindow(QMainWindow):
     def make_standart_graph(self, table):
         edges = self.get_edges_from_table(table)
         G = nx.DiGraph()
-        # nodes = list(range(1, 18))
+        # nodes = list(range( 1, 18))
         # G.add_nodes_from(nodes)
         G.add_weighted_edges_from(edges)
 
@@ -136,9 +140,9 @@ class MainWindow(QMainWindow):
         edge_labels = nx.get_edge_attributes(G, 'weight')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
 
-        plt.title("Ориентированный граф с 17 узлами")
         plt.savefig("directed_graph_17_nodes.png")
-        plt.show()
+        dialog = ImageDialog("directed_graph_17_nodes.png")
+        dialog.exec()
 
     def make_orient_graph(self, table):
         G = nx.DiGraph()
@@ -155,10 +159,10 @@ class MainWindow(QMainWindow):
         edge_labels = nx.get_edge_attributes(G, 'weight')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
         plt.axis('off')
-        plt.title("Упорядоченный граф с 17 узлами")
         plt.savefig("orient_graph_17_nodes.png")
-        plt.show()
-        plt.show()
+        dialog = ImageDialog("orient_graph_17_nodes.png")
+        dialog.exec()
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
