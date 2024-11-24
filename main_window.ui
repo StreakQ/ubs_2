@@ -58,7 +58,7 @@
     </property>
     <layout class="QVBoxLayout" name="verticalLayout_3">
      <item>
-      <widget class="QTextEdit" name="last_node">
+      <widget class="QTextEdit" name="last_node_txt">
        <property name="maximumSize">
         <size>
          <width>300</width>
@@ -68,7 +68,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="make_short_way">
+      <widget class="QPushButton" name="make_short_way_btn">
        <property name="text">
         <string>Кратчайший путь</string>
        </property>

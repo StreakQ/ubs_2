@@ -1,5 +1,6 @@
 import sys
-from PyQt6.QtWidgets import (QMainWindow, QTableWidget, QTableWidgetItem, QApplication, QDialog, QLabel, QVBoxLayout)
+from PyQt6.QtWidgets import (QMainWindow, QTableWidget, QTableWidgetItem, QApplication, QDialog, QLabel, QVBoxLayout,
+                             QMessageBox, QTextEdit, QLineEdit, QPushButton)
 from PyQt6 import uic
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -10,19 +11,11 @@ class ImageDialog(QDialog):
     def __init__(self, image_path):
         super().__init__()
         self.setWindowTitle("Graph Image")
-
-        # Создаем layout для диалога
         layout = QVBoxLayout()
-
-        # Создаем QLabel для отображения изображения
         label = QLabel(self)
-        pixmap = QPixmap(image_path)  # Загружаем изображение
-        label.setPixmap(pixmap)  # Устанавливаем pixmap в QLabel
-
-        # Добавляем QLabel в layout
+        pixmap = QPixmap(image_path)
+        label.setPixmap(pixmap)
         layout.addWidget(label)
-
-        # Устанавливаем layout для диалога
         self.setLayout(layout)
 
 
@@ -35,9 +28,11 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         self.Amatrix = self.findChild(QTableWidget, "Amatrix")
+        self.shortest_way = self.findChild(QTextEdit, "last_node_txt")
         self.std_input.clicked.connect(self.standart_input)
         self.make_std_graph.clicked.connect(lambda: self.make_standart_graph(self.Amatrix))
         self.make_orient_graph_btn.clicked.connect(lambda: self.make_orient_graph(self.Amatrix))
+        self.make_short_way_btn.clicked.connect(self.find_shortest_path)
 
         self.Amatrix.setRowCount(17)
         self.Amatrix.setColumnCount(17)
@@ -125,6 +120,56 @@ class MainWindow(QMainWindow):
                 pos[node] = (level, i)
         return pos
 
+    def find_shortest_path(self):
+        # Получаем номер узла, до которого нужно найти кратчайший путь
+        target_node = self.shortest_way.toPlainText()
+        if not target_node.isdigit() or int(target_node) < 1 or int(target_node) > 17:
+            QMessageBox.warning(self, "Ошибка ввода", "Введите корректный номер узла (от 1 до 17).")
+            return
+
+        target_node = int(target_node)
+        # Получаем граф из таблицы
+        edges = self.get_edges_from_table(self.Amatrix)
+        G = nx.DiGraph()
+        G.add_weighted_edges_from(edges)
+
+        # Находим уровни графа
+        levels = self.find_levels(G)
+        pos = self.define_node_positions(levels)
+
+        # Определяем узлы нулевого уровня
+        zero_level_nodes = levels.get(0, [])
+        if not zero_level_nodes:
+            QMessageBox.warning(self, "Ошибка", "Нет узлов на нулевом уровне.")
+            return
+
+        # Используем первый узел нулевого уровня в качестве источника
+        source_node = zero_level_nodes[0]
+
+        # Используем алгоритм Дейкстры для нахождения кратчайшего пути
+        try:
+            shortest_path = nx.dijkstra_path(G, source=source_node, target=target_node)
+            shortest_path_length = nx.dijkstra_path_length(G, source=source_node, target=target_node)
+            QMessageBox.information(self, "Кратчайший путь",
+                                    f"Кратчайший путь до узла {target_node}: {shortest_path}\nДлина пути: {shortest_path_length}")
+
+            # Рисуем граф с выделенным кратчайшим путем
+            plt.figure(figsize=(12, 10))
+            nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=1000, font_size=14, font_color='black',
+                    font_weight='bold', edge_color='black', arrows=True)
+            edge_labels = nx.get_edge_attributes(G, 'weight')
+            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+
+            # Выделяем кратчайший путь
+            path_edges = list(zip(shortest_path[:-1], shortest_path[1:]))
+            nx.draw_networkx_edges(G, pos, edgelist=path_edges, edge_color='red', width=2)
+
+            plt.savefig("shortest_path.png")
+            dialog = ImageDialog("shortest_path.png")
+            dialog.exec()
+        except nx.NetworkXNoPath:
+            QMessageBox.warning(self, "Ошибка", f"Кратчайший путь до узла {target_node} не существует.")
+
     def make_standart_graph(self, table):
         edges = self.get_edges_from_table(table)
         G = nx.DiGraph()
@@ -148,18 +193,25 @@ class MainWindow(QMainWindow):
         G = nx.DiGraph()
         edges = self.get_edges_from_table(table)
         G.add_weighted_edges_from(edges)
+
         levels = self.find_levels(G)
         pos = self.define_node_positions(levels)
 
         # Рисуем граф
-        plt.figure(figsize=(12, 10))
-        nx.draw_networkx_nodes(G, pos, node_size=300)
-        nx.draw_networkx_edges(G, pos, arrows=True)
-        nx.draw_networkx_labels(G, pos, font_size=10, font_family='sans-serif')
-        edge_labels = nx.get_edge_attributes(G, 'weight')
-        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-        plt.axis('off')
-        plt.savefig("orient_graph_17_nodes.png")
+        try:
+            plt.figure(figsize=(12, 10))
+            nx.draw_networkx_nodes(G, pos, node_size=300)
+            nx.draw_networkx_edges(G, pos, arrows=True)
+            nx.draw_networkx_labels(G, pos, font_family='sans-serif', font_size=10, font_color='black',
+                                    font_weight='bold')
+            edge_labels = nx.get_edge_attributes(G, 'weight')
+            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+            plt.axis('off')
+            plt.savefig("orient_graph_17_nodes.png")
+            print("Graph saved successfully.")
+        except Exception as e:
+            print(f"Error while drawing the graph: {e}")
+
         dialog = ImageDialog("orient_graph_17_nodes.png")
         dialog.exec()
 
